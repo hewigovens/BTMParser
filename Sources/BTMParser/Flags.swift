@@ -1,42 +1,45 @@
-//  Copyright © 2023 Objective-See
-//  Copyright © 2025 Tao Xu
-//  SPDX‑License‑Identifier: GPL-3.0-or-later
+//  Copyright 2023 Objective-See
+//  Copyright 2025 Tao Xu
+//  SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
 
-enum DispositionFlag: Int64 {
-    case enabled = 0x1
-    case allowed = 0x2
-    case hidden = 0x4
-    case notified = 0x8
+struct DispositionFlag: OptionSet {
+    let rawValue: Int64
+
+    static let enabled    = DispositionFlag(rawValue: 1 << 0) // 0x1
+    static let allowed    = DispositionFlag(rawValue: 1 << 1) // 0x2
+    static let hidden     = DispositionFlag(rawValue: 1 << 2) // 0x4
+    static let notified   = DispositionFlag(rawValue: 1 << 3) // 0x8
 
     // Function to get disposition details string
     static func dispositionDetails(_ record: ItemRecord) -> String {
+        let flags = DispositionFlag(rawValue: record.disposition)
         var details: [String] = []
 
         // Enabled / Disabled
-        if (record.disposition & DispositionFlag.enabled.rawValue) != 0 {
+        if flags.contains(.enabled) {
             details.append("enabled")
         } else {
             details.append("disabled")
         }
 
         // Allowed / Disallowed
-        if (record.disposition & DispositionFlag.allowed.rawValue) != 0 {
+        if flags.contains(.allowed) {
             details.append("allowed")
         } else {
             details.append("disallowed")
         }
 
         // Hidden / Visible
-        if (record.disposition & DispositionFlag.hidden.rawValue) != 0 {
+        if flags.contains(.hidden) {
             details.append("hidden")
         } else {
             details.append("visible")
         }
 
         // Notified / Not Notified
-        if (record.disposition & DispositionFlag.notified.rawValue) != 0 {
+        if flags.contains(.notified) {
             details.append("notified")
         } else {
             details.append("not notified")
@@ -47,39 +50,43 @@ enum DispositionFlag: Int64 {
     }
 }
 
-enum TypeFlag: Int64 {
-    case curated = 0x80000
-    case legacy = 0x10000
-    case developer = 0x20
-    case daemon = 0x10
-    case agent = 0x8
-    case loginItem = 0x4
-    case app = 0x2
+struct TypeFlag: OptionSet {
+    let rawValue: Int64
+
+    // Note: Values are not contiguous powers of 2, define them directly.
+    static let app        = TypeFlag(rawValue: 0x2)
+    static let loginItem  = TypeFlag(rawValue: 0x4)
+    static let agent      = TypeFlag(rawValue: 0x8)
+    static let daemon     = TypeFlag(rawValue: 0x10)
+    static let developer  = TypeFlag(rawValue: 0x20)
+    static let legacy     = TypeFlag(rawValue: 0x10000)
+    static let curated    = TypeFlag(rawValue: 0x80000)
 
     // Function to get type details string
     static func typeDetails(_ record: ItemRecord) -> String {
+        let flags = TypeFlag(rawValue: record.type)
         var details: String = ""
 
-        // Check flags
-        if (record.type & TypeFlag.curated.rawValue) != 0 {
+        // Check flags (order might matter for readability/original logic)
+        if flags.contains(.curated) {
             details += "curated "
         }
-        if (record.type & TypeFlag.legacy.rawValue) != 0 {
+        if flags.contains(.legacy) {
             details += "legacy "
         }
-        if (record.type & TypeFlag.developer.rawValue) != 0 {
+        if flags.contains(.developer) {
             details += "developer "
         }
-        if (record.type & TypeFlag.daemon.rawValue) != 0 {
+        if flags.contains(.daemon) {
             details += "daemon "
         }
-        if (record.type & TypeFlag.agent.rawValue) != 0 {
+        if flags.contains(.agent) {
             details += "agent "
         }
-        if (record.type & TypeFlag.loginItem.rawValue) != 0 {
+        if flags.contains(.loginItem) {
             details += "login item "
         }
-        if (record.type & TypeFlag.app.rawValue) != 0 {
+        if flags.contains(.app) {
             details += "app "
         }
 

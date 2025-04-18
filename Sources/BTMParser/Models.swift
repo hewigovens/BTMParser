@@ -1,6 +1,6 @@
-//  Copyright © 2023 Objective-See
-//  Copyright © 2025 Tao Xu
-//  SPDX‑License‑Identifier: GPL-3.0-or-later
+//  Copyright 2023 Objective-See
+//  Copyright 2025 Tao Xu
+//  SPDX-License-Identifier: GPL-3.0-or-later
 
 import Foundation
 
@@ -13,23 +13,27 @@ final class Storage: NSObject, NSSecureCoding {
     var itemsByUserIdentifier: NSDictionary?
     var mdmPayloadsByIdentifier: NSDictionary?
 
-    init?(coder aDecoder: NSCoder) {
+    init?(coder decoder: NSCoder) {
         super.init()
         let allowedClassesForItems: [AnyClass] = [NSDictionary.self, NSArray.self, ItemRecord.self, NSString.self, NSNumber.self, NSURL.self, NSSet.self]
-        self.itemsByUserIdentifier = aDecoder
+        self.itemsByUserIdentifier = decoder
             .decodeObject(
                 of: allowedClassesForItems,
                 forKey: Keys.itemsByUserID
             ) as? NSDictionary
 
         let allowedClassesForMDM: [AnyClass] = [NSDictionary.self, NSString.self, NSNumber.self]
-        self.mdmPayloadsByIdentifier = aDecoder.decodeObject(of: allowedClassesForMDM, forKey: Keys.mdmPayloadsByIdentifier) as? NSDictionary
+        self.mdmPayloadsByIdentifier = decoder
+            .decodeObject(
+                of: allowedClassesForMDM,
+                forKey: Keys.mdmPayloadsByIdentifier
+            ) as? NSDictionary
     }
 
-    func encode(with aCoder: NSCoder) {
+    func encode(with encoder: NSCoder) {
         // Encode properties
-        aCoder.encode(self.itemsByUserIdentifier, forKey: Keys.itemsByUserID)
-        aCoder.encode(self.mdmPayloadsByIdentifier, forKey: Keys.mdmPayloadsByIdentifier)
+        encoder.encode(self.itemsByUserIdentifier, forKey: Keys.itemsByUserID)
+        encoder.encode(self.mdmPayloadsByIdentifier, forKey: Keys.mdmPayloadsByIdentifier)
     }
 }
 

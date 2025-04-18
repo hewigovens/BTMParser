@@ -1,6 +1,6 @@
-//  Copyright © 2023 Objective-See
-//  Copyright © 2025 Tao Xu
-//  SPDX‑License‑Identifier: GPL-3.0-or-later
+//  Copyright 2023 Objective-See
+//  Copyright 2025 Tao Xu
+//  SPDX-License-Identifier: GPL-3.0-or-later
 
 @testable import BTMParser
 import XCTest
