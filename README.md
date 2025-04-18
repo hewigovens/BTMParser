@@ -28,7 +28,8 @@ An open-source Swift package and command-line tool (`btm-dumper`) to parse macOS
         swift run btm-dumper /path/to/your/BackgroundItems-vX.btm
         ```
 
-Note: You need Full Disk Access to read the default path `/private/var/db/com.apple.backgroundtaskmanagement/`.
+> [!NOTE]  
+> You need Full Disk Access to read the default path `/private/var/db/com.apple.backgroundtaskmanagement/`.
 
 ## JSON Output
 
@@ -66,7 +67,7 @@ You can add `BTMParser` as a dependency to your own Swift package:
 ```swift
 // In your Package.swift
 dependencies: [
-    .package(url: "https://github.com/hewigovens/BTMParser.git", from: "1.0.0")
+    .package(url: "https://github.com/hewigovens/BTMParser.git", branch: "main")
 ],
 targets: [
     .target(
@@ -85,7 +86,6 @@ do {
     // Parse a specific file
     if let fileURL = URL(string: "/path/to/BackgroundItems-vX.btm") {
         let btmData = try BTMParser.parse(path: fileURL)
-        // Process btmData dictionary
         print(btmData)
     } else {
         print("Invalid URL")
@@ -101,5 +101,3 @@ do {
 ## License
 
 `BTMParser` is inspired by [DumpBTM](https://github.com/objective-see/DumpBTM) and is released under the same [License](./LICENSE).
-
-
