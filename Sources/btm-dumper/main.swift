@@ -1,6 +1,6 @@
-//  Copyright © 2023 Objective-See
-//  Copyright © 2025 Tao Xu
-//  SPDX‑License‑Identifier: GPL-3.0-or-later
+//  Copyright 2023 Objective-See
+//  Copyright 2025 Tao Xu
+//  SPDX-License-Identifier: GPL-3.0-or-later
 
 import BTMParser
 import Foundation
@@ -17,15 +17,16 @@ if CommandLine.arguments.count > 1 {
 
 // Parse the BTM database
 do {
-    let btmData = try BTMParser.parse(path: inputFileURL)
+    let parsedData: ParsedData = try BTMParser.parse(path: inputFileURL)
 
-    // Convert the dictionary to pretty-printed JSON data
-    let jsonData = try JSONSerialization.data(
-        withJSONObject: btmData,
-        options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-    )
+    // Use JSONEncoder for Encodable types
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
 
-    // Convert JSON data to a string
+    // Encode the ParsedData struct directly
+    let jsonData = try encoder.encode(parsedData)
+
+    // Convert JSON data to a string and print
     if let jsonString = String(data: jsonData, encoding: .utf8) {
         print(jsonString)
         exit(0) // Success
@@ -39,8 +40,10 @@ do {
     switch error {
     case .fileNotFound(let path):
         fputs("Error: BTM file not found at path: \(path)\n", stderr)
-    case .parsingFailed(let reason):
+    case .parsingFailed(let reason): // Keep this case for now, though unarchiveFailed might be more common
         fputs("Error: Failed to parse BTM file. Reason: \(reason)\n", stderr)
+    case .unarchiveFailed(let reason): // Added case for specific unarchiving errors
+        fputs("Error: Failed to unarchive BTM data. Reason: \(reason)\n", stderr)
     }
     exit(1)
 } catch {

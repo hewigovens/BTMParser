@@ -7,10 +7,10 @@ import Foundation
 struct DispositionFlag: OptionSet {
     let rawValue: Int64
 
-    static let enabled    = DispositionFlag(rawValue: 1 << 0) // 0x1
-    static let allowed    = DispositionFlag(rawValue: 1 << 1) // 0x2
-    static let hidden     = DispositionFlag(rawValue: 1 << 2) // 0x4
-    static let notified   = DispositionFlag(rawValue: 1 << 3) // 0x8
+    static let enabled = DispositionFlag(rawValue: 1 << 0) // 0x1
+    static let allowed = DispositionFlag(rawValue: 1 << 1) // 0x2
+    static let hidden = DispositionFlag(rawValue: 1 << 2) // 0x4
+    static let notified = DispositionFlag(rawValue: 1 << 3) // 0x8
 
     // Function to get disposition details string
     static func dispositionDetails(_ record: ItemRecord) -> String {
@@ -54,18 +54,19 @@ struct TypeFlag: OptionSet {
     let rawValue: Int64
 
     // Note: Values are not contiguous powers of 2, define them directly.
-    static let app        = TypeFlag(rawValue: 0x2)
-    static let loginItem  = TypeFlag(rawValue: 0x4)
-    static let agent      = TypeFlag(rawValue: 0x8)
-    static let daemon     = TypeFlag(rawValue: 0x10)
-    static let developer  = TypeFlag(rawValue: 0x20)
-    static let legacy     = TypeFlag(rawValue: 0x10000)
-    static let curated    = TypeFlag(rawValue: 0x80000)
+    static let app = TypeFlag(rawValue: 0x2)
+    static let loginItem = TypeFlag(rawValue: 0x4)
+    static let agent = TypeFlag(rawValue: 0x8)
+    static let daemon = TypeFlag(rawValue: 0x10)
+    static let developer = TypeFlag(rawValue: 0x20)
+
+    static let legacy = TypeFlag(rawValue: 0x10000)
+    static let curated = TypeFlag(rawValue: 0x80000)
 
     // Function to get type details string
     static func typeDetails(_ record: ItemRecord) -> String {
         let flags = TypeFlag(rawValue: record.type)
-        var details: String = ""
+        var details = ""
 
         // Check flags (order might matter for readability/original logic)
         if flags.contains(.curated) {

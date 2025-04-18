@@ -8,227 +8,209 @@ import Foundation
 /// - Parameter btmPath: An optional URL pointing to a specific BTM database file. If nil, the default system path is used.
 /// - Returns: A dictionary representing the parsed BTM data, or nil on failure.
 /// - Throws: `BTMParserError` if the file is not found or parsing fails.
-public func parse(path btmPath: URL) throws -> [String: Any] {
-    var resultDict: [String: Any] = [:]
-    resultDict[Keys.path] = btmPath.path
-
-    // Check if file exists before attempting to read
-    guard FileManager.default.fileExists(atPath: btmPath.path) else {
-        throw BTMParserError.fileNotFound(path: btmPath.path)
-    }
-
-    do {
-        // 1. Read Data
-        let data = try Data(contentsOf: btmPath)
-
-        // 2. Unarchive Data using helper
-        let storage = try _unarchiveBTMData(data: data)
-
-        // 3. Process the decoded Storage object
-        return processStorage(storage, path: btmPath)
-
-    } catch let error as BTMParserError {
-        throw error
-    } catch {
-        throw BTMParserError.parsingFailed(reason: "Failed during file read or unarchiving for \(btmPath.path): \(error.localizedDescription)")
-    }
-}
-
-// Private helper to handle NSKeyedUnarchiver logic
-private func _unarchiveBTMData(data: Data) throws -> Storage {
-    do {
-        // Allowed classes for unarchiving - Ensure ItemRecord and Storage are included
-        let allowedClasses: [AnyClass] = [
-            Storage.self,
-            ItemRecord.self,
-            NSDictionary.self,
-            NSArray.self,
-            NSSet.self,
-            NSString.self,
-            NSNumber.self,
-            NSDate.self,
-            NSURL.self,
-            NSUUID.self // Include NSUUID as UUID is decoded as this
-        ]
-
-        // Initialize unarchiver
-        let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
-        unarchiver.requiresSecureCoding = true // Enforce secure coding
-
-        // Attempt to decode the root 'Storage' object using the 'store' key
-        guard let storage = unarchiver.decodeObject(of: allowedClasses, forKey: "store") as? Storage else {
-            print("Error: Failed to decode root 'Storage' object from BTM data using 'store' key.")
-            throw BTMParserError.parsingFailed(reason: "Failed to decode root Storage object")
+public enum BTMParser {
+    public static func parse(path btmPath: URL) throws -> ParsedData {
+        let filePath = btmPath.path
+        guard FileManager.default.fileExists(atPath: filePath) else {
+            throw BTMParserError.fileNotFound(path: filePath)
         }
 
-        // Check for decoding errors
-        if let decodingError = unarchiver.error {
-            print("Error during unarchiving: \(decodingError.localizedDescription)")
-            throw BTMParserError.parsingFailed(reason: "Unarchiving failed: \(decodingError.localizedDescription)")
-        }
+        do {
+            // 1. Read Data
+            let data = try Data(contentsOf: btmPath)
 
-        // Finish decoding (redundant after checking error? Check Apple docs)
-        unarchiver.finishDecoding()
-        print("Decoded Storage object using 'store' key.")
+            // 2. Unarchive Data using helper
+            let storage = try Self._unarchiveBTMData(data: data)
 
-        return storage
-    } catch let error as BTMParserError {
-        throw error
-    } catch {
-        throw BTMParserError.parsingFailed(reason: "Unarchiving setup failed: \(error.localizedDescription)")
-    }
-}
-
-// Helper function to process the decoded Storage object
-private func processStorage(_ storage: Storage, path: URL) -> [String: Any] {
-    var contents: [String: Any] = [:]
-    contents[Keys.path] = path.path
-
-    // Process itemsByUserIdentifier
-    // The dictionary seems to be [String: NSArray], where NSArray contains ItemRecord objects
-    if let itemsDict = storage.itemsByUserIdentifier as? [String: NSArray] {
-        var processedItemsByUserID: [String: [[String: Any]]] = [:]
-        for (userID, recordsArray) in itemsDict {
-            // Ensure recordsArray contains ItemRecord objects
-            guard let records = recordsArray as? [ItemRecord] else {
-                print("Warning: Could not cast records array for user ID \(userID) to [ItemRecord]")
-                continue
+            // Safely cast and process itemsByUserID
+            guard let rawItemsDict = storage.itemsByUserIdentifier as? [String: [ItemRecord]] else {
+                // Handle case where casting fails or key is missing, maybe return empty?
+                print("Warning: 'itemsByUserID' key missing or has unexpected type.")
+                return ParsedData(path: filePath, itemsByUserID: [:], mdmPayloadsByIdentifier: storage.mdmPayloadsByIdentifier as? [String: Any])
             }
-            // TODO: Convert userID (UUID string) to actual UID if needed (like uidFromUUID)
-            processedItemsByUserID[userID] = records.map { record in
-                // Pass the context (all records for this user) for parent lookup
-                itemRecordToDictionary(record, allItemsForUser: records)
+
+            let processedItemsByUserID: [String: [ParsedItem]] = rawItemsDict.mapValues { records in
+                records.compactMap { Self.processRecord($0) }
             }
+
+            // Process MDM payloads (currently just casting)
+            let mdmPayloads = storage.mdmPayloadsByIdentifier as? [String: Any]
+
+            // Second pass to resolve executable paths for specific item types (Login Items, Apps)
+            let resolvedItemsByUserID = processedItemsByUserID.mapValues { userItems in
+                Self.resolveExecutablePaths(for: userItems)
+            }
+
+            return ParsedData(
+                path: filePath,
+                itemsByUserID: resolvedItemsByUserID,
+                mdmPayloadsByIdentifier: mdmPayloads
+            )
+        } catch let error as BTMParserError {
+            throw error
+        } catch {
+            throw BTMParserError.unarchiveFailed(reason: error.localizedDescription)
         }
-        contents[Keys.itemsByUserID] = processedItemsByUserID
-    } else if storage.itemsByUserIdentifier != nil {
-        print("Warning: Could not cast itemsByUserIdentifier to [String: NSArray] containing ItemRecords. Actual type: \(type(of: storage.itemsByUserIdentifier!))")
-        if let dict = storage.itemsByUserIdentifier {
-            for (key, value) in dict {
-                print("  Key: \(key), Value Type: \(type(of: value))")
-                if let arr = value as? NSArray {
-                    print("    Array count: \(arr.count)")
-                    if arr.count > 0 {
-                        print("    First item type: \(type(of: arr[0]))")
+    }
+
+    // MARK: - Private Static Helpers
+
+    // Private helper to handle NSKeyedUnarchiver logic
+    private static func _unarchiveBTMData(data: Data) throws -> Storage {
+        do {
+            // Define allowed classes FIRST
+            let allowedClasses: [AnyClass] = [
+                Storage.self,
+                ItemRecord.self,
+                NSDictionary.self,
+                NSArray.self,
+                NSString.self,
+                NSNumber.self,
+                NSUUID.self,
+                NSURL.self,
+                NSDate.self,
+            ]
+            // Initialize unarchiver requiring secure coding
+            let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
+            unarchiver.requiresSecureCoding = true
+            // DO NOT set allowedClasses here
+
+            // Attempt to decode the 'store' object, PASSING allowedClasses
+            guard let storage = unarchiver.decodeObject(of: allowedClasses, forKey: "store") as? Storage else {
+                // Fallback: Try decoding 'storeData' if 'store' fails
+                if let storeData = unarchiver.decodeObject(forKey: "storeData") as? Data,
+                   let nestedUnarchiver = try? NSKeyedUnarchiver(forReadingFrom: storeData)
+                {
+                    nestedUnarchiver.requiresSecureCoding = true
+                    // DO NOT set allowedClasses here either
+                    // Decode nested object, PASSING allowedClasses
+                    if let nestedStorage = nestedUnarchiver.decodeObject(of: allowedClasses, forKey: NSKeyedArchiveRootObjectKey) as? Storage {
+                        print("Decoded Storage object using 'storeData' key.")
+                        nestedUnarchiver.finishDecoding()
+                        return nestedStorage
+                    } else {
+                        nestedUnarchiver.finishDecoding()
                     }
                 }
+                // If both attempts fail
+                throw BTMParserError.unarchiveFailed(reason: "Could not decode Storage object using 'store' or 'storeData' keys.")
             }
+            print("Decoded Storage object using 'store' key.")
+            unarchiver.finishDecoding()
+            return storage
+        } catch let error as BTMParserError {
+            throw error // Re-throw our specific errors
+        } catch {
+            // Wrap other unarchiving errors
+            throw BTMParserError.unarchiveFailed(reason: "NSKeyedUnarchiver error: \(error.localizedDescription)")
         }
     }
 
-    // Process mdmPayloadsByIdentifier
-    if let mdmDict = storage.mdmPayloadsByIdentifier as? [String: Any], !mdmDict.isEmpty {
-        // Note: Original ObjC code seemed to have a bug here, assigning itemsByUserIdentifier again.
-        // Assigning the actual mdmPayloadsByIdentifier here.
-        contents[Keys.mdmPayload] = mdmDict
-    }
-
-    return contents
-}
-
-// Helper function to convert ItemRecord to Dictionary
-// Needs context of all items for the same user to find parents
-private func itemRecordToDictionary(_ record: ItemRecord, allItemsForUser: [ItemRecord]) -> [String: Any] {
-    var item: [String: Any] = [:]
-
-    // Basic properties
-    item[Keys.itemUUID] = record.uuid
-    item[Keys.itemName] = record.name
-    item[Keys.itemDevName] = record.developerName
-    if let teamID = record.teamIdentifier, !teamID.isEmpty { // Check if nil or empty
-        item[Keys.itemTeamID] = teamID
-    }
-    // Add raw type and disposition values
-    item[Keys.itemType] = record.type
-    item[Keys.itemDisposition] = record.disposition
-
-    // Details derived from helper functions
-    item[Keys.itemTypeDetails] = TypeFlag.typeDetails(record)
-    item[Keys.itemDispositionDetails] = DispositionFlag.dispositionDetails(record)
-
-    item[Keys.itemID] = record.identifier
-    // Convert NSURL to String for JSON compatibility
-    item[Keys.itemURL] = record.url?.absoluteString
-    item[Keys.itemExePath] = record.executablePath // Initial value
-    item[Keys.itemGeneration] = record.generation
-    if let bundleID = record.bundleIdentifier, !bundleID.isEmpty {
-        item[Keys.itemBundleID] = bundleID
-    }
-
-    // Associated bundle IDs
-    // Original ObjC uses NSArray, convert to Swift [String]? for consistency
-    if let associated = record.associatedBundleIdentifiers as? [String], !associated.isEmpty {
-        item[Keys.itemAssociatedIDs] = associated
-    }
-
-    // Parent ID
-    if let parent = findParent(record, items: allItemsForUser) {
-        let parentID = parent.identifier ?? "<Parent ID Missing>"
-        item[Keys.itemContainer] = parentID
-    } else if let containerID = record.container, !containerID.isEmpty {
-        // If parent object not found but container ID exists, use the raw container ID
-        item[Keys.itemContainer] = containerID
-    }
-
-    // Embedded item IDs
-    if let embedded = record.embeddedItems?.allObjects as? [String], !embedded.isEmpty { // embeddedItems remains NSSet
-        item[Keys.itemEmbeddedIDs] = embedded
-    }
-
-    // Logic for specific item types to determine paths
-    let agentTypeFlag = TypeFlag.agent.rawValue
-    let daemonTypeFlag = TypeFlag.daemon.rawValue
-    let loginItemTypeFlag = TypeFlag.loginItem.rawValue
-    let appTypeFlag = TypeFlag.app.rawValue
-
-    // Agent or Daemon (type & 0x8 || type & 0x10)
-    if (record.type & agentTypeFlag != 0) || (record.type & daemonTypeFlag != 0) {
-        if let urlPath = record.url?.path, !urlPath.isEmpty {
-            // Plist path is in url for agents/daemons
-            item[Keys.itemPlistPath] = urlPath
+    // Private helper to convert ItemRecord to ParsedItem
+    private static func processRecord(_ record: ItemRecord) -> ParsedItem? {
+        // Ensure required fields are present
+        guard let identifier = record.identifier, !identifier.isEmpty,
+              let uuid = record.uuid, !uuid.isEmpty, // Assuming record.uuid is String?
+              let name = record.name, !name.isEmpty
+        else {
+            // Log potentially incomplete record? For now, just skip.
+            print("Skipping record due to missing identifier, uuid, or name: \(record)")
+            return nil
         }
-        // Exe path is assumed to be already set in record.executablePath
+
+        return ParsedItem(
+            identifier: identifier,
+            uuid: uuid, // Pass the unwrapped String directly
+            name: name,
+            developerName: record.developerName,
+            teamIdentifier: record.teamIdentifier,
+            type: record.type, // Keep raw Int64 type
+            typeDetails: TypeFlag.typeDetails(record), // Generate details string
+            disposition: record.disposition, // Keep raw Int64 disposition
+            dispositionDetails: DispositionFlag.dispositionDetails(record), // Generate details string
+            url: record.url,
+            executablePath: record.executablePath, // Initial path, might be refined later
+            bundleIdentifier: record.bundleIdentifier,
+            parentIdentifier: record.container, // Corrected: Use 'container' from ItemRecord
+            containerIdentifier: record.container, // Renamed key in ParsedItem struct
+            associatedBundleIdentifiers: record.associatedBundleIdentifiers as? [String], // Cast needed
+            generation: record.generation // Assign Int64 directly to Int64?
+        )
     }
-    // Login Item (type & 0x4)
-    else if record.type & loginItemTypeFlag != 0 {
-        if let parentRecord = findParent(record, items: allItemsForUser),
-           let parentURLPath = parentRecord.url?.path,
-           let recordURLPath = record.url?.path // Login item URL path is relative within parent
-        {
-            // Construct potential bundle path relative to parent
-            let potentialBundlePath = parentURLPath + recordURLPath
-            if let bundle = Bundle(path: potentialBundlePath) {
-                if let exePath = bundle.executablePath, !exePath.isEmpty {
-                    item[Keys.itemExePath] = exePath // Override original exe path
+
+    // Helper to find a parent ParsedItem based on containerIdentifier
+    private static func findParent(for item: ParsedItem, in allItems: [ParsedItem]) -> ParsedItem? {
+        guard let containerID = item.containerIdentifier, !containerID.isEmpty else {
+            return nil // Item has no container ID
+        }
+        // The containerID in ItemRecord corresponds to the parent's identifier
+        return allItems.first { $0.identifier == containerID }
+    }
+
+    // Second pass to resolve executable paths for specific item types (Login Items, Apps)
+    private static func resolveExecutablePaths(for userItems: [ParsedItem]) -> [ParsedItem] {
+        return userItems.map { item in
+            var updatedItem = item // Create a mutable copy
+
+            // Login Item (type & 0x4)
+            if TypeFlag(rawValue: item.type).contains(.loginItem) {
+                if let parent = Self.findParent(for: item, in: userItems),
+                   let parentURLPath = parent.url?.path,
+                   let itemURLPath = item.url?.path // Login item URL path is relative within parent
+                {
+                    // Construct potential bundle path relative to parent
+                    let potentialBundlePath = parentURLPath + itemURLPath
+                    if let bundle = Bundle(path: potentialBundlePath) {
+                        if let exePath = bundle.executablePath, !exePath.isEmpty {
+                            updatedItem = ParsedItem(
+                                identifier: item.identifier, uuid: item.uuid, name: item.name,
+                                developerName: item.developerName, teamIdentifier: item.teamIdentifier,
+                                type: item.type, typeDetails: item.typeDetails,
+                                disposition: item.disposition, dispositionDetails: item.dispositionDetails,
+                                url: item.url, executablePath: exePath, // Updated path
+                                bundleIdentifier: item.bundleIdentifier, parentIdentifier: item.parentIdentifier,
+                                containerIdentifier: item.containerIdentifier,
+                                associatedBundleIdentifiers: item.associatedBundleIdentifiers,
+                                generation: item.generation
+                            )
+                        } else {
+                            print("Warning: Found bundle for Login Item but couldn't get executablePath: \(potentialBundlePath)")
+                        }
+                    } else {
+                        print("Warning: Could not load bundle for Login Item at constructed path: \(potentialBundlePath)")
+                    }
+                } else {
+                    print("Warning: Could not find parent or parent/item URL for Login Item: \(item.identifier)")
                 }
-            } else {
-                print("Warning: Could not load bundle for Login Item at constructed path: \(potentialBundlePath)")
             }
-        } else {
-            print("Warning: Could not find parent or parent/item URL for Login Item: \(record.identifier ?? "N/A")")
-        }
-    }
-    // App (type & 0x2)
-    else if record.type & appTypeFlag != 0 {
-        if let appBundlePath = record.url?.path, !appBundlePath.isEmpty {
-            if let bundle = Bundle(path: appBundlePath) {
-                if let exePath = bundle.executablePath, !exePath.isEmpty {
-                    item[Keys.itemExePath] = exePath // Override original exe path
+            // App (type & 0x2)
+            else if TypeFlag(rawValue: item.type).contains(.app) {
+                if let appBundlePath = item.url?.path, !appBundlePath.isEmpty {
+                    if let bundle = Bundle(path: appBundlePath) {
+                        if let exePath = bundle.executablePath, !exePath.isEmpty {
+                            updatedItem = ParsedItem(
+                                identifier: item.identifier, uuid: item.uuid, name: item.name,
+                                developerName: item.developerName, teamIdentifier: item.teamIdentifier,
+                                type: item.type, typeDetails: item.typeDetails,
+                                disposition: item.disposition, dispositionDetails: item.dispositionDetails,
+                                url: item.url, executablePath: exePath, // Updated path
+                                bundleIdentifier: item.bundleIdentifier, parentIdentifier: item.parentIdentifier,
+                                containerIdentifier: item.containerIdentifier,
+                                associatedBundleIdentifiers: item.associatedBundleIdentifiers,
+                                generation: item.generation
+                            )
+                        } else {
+                            print("Warning: Found bundle for App Item but couldn't get executablePath: \(appBundlePath)")
+                        }
+                    } else {
+                        print("Warning: Could not load bundle for App Item at path: \(appBundlePath)")
+                    }
+                } else {
+                    print("Warning: Missing URL path for App Item: \(item.identifier)")
                 }
-            } else {
-                print("Warning: Could not load bundle for App Item at path: \(appBundlePath)")
             }
-        } else {
-            print("Warning: Missing URL path for App Item: \(record.identifier ?? "N/A")")
+
+            return updatedItem // Return the original or updated item
         }
     }
-
-    return item
-}
-
-private func findParent(_ record: ItemRecord, items: [ItemRecord]) -> ItemRecord? {
-    guard let containerID = record.container, !containerID.isEmpty else {
-        return nil
-    }
-    return items.first { $0.identifier == containerID }
 }

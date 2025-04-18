@@ -17,18 +17,13 @@ final class BTMParserTests: XCTestCase {
             return
         }
 
-        let parsedData = try BTMParser.parse(path: btmFileURL)
+        let parsedData: ParsedData = try BTMParser.parse(path: btmFileURL)
 
-        XCTAssertNotNil(parsedData, "Parsing should return a non-nil dictionary.")
-        XCTAssertEqual(parsedData[Keys.path] as? String, btmFilePath, "Path key mismatch")
-        XCTAssertNil(parsedData[Keys.error], "Error key should be nil on success")
-        XCTAssertNotNil(parsedData[Keys.itemsByUserID], "Expected 'itemsByUserID' key not found.")
+        XCTAssertEqual(parsedData.path, btmFilePath, "Path mismatch")
+        XCTAssertNotNil(parsedData.itemsByUserID, "itemsByUserID should exist")
 
-        // Check itemsByUserID structure
-        guard let itemsByUserID = parsedData[Keys.itemsByUserID] as? [String: [[String: Any]]] else {
-            XCTFail("itemsByUserID key is missing or not the expected type [String: [[String: Any]]]")
-            return
-        }
+        // Use the typed dictionary directly
+        let itemsByUserID = parsedData.itemsByUserID
 
         // Check for specific User ID (501 -> UUID: DCA7C5DA-F8EE-4910-A2F5-C32EDCAC43FC)
         let targetUserID = "DCA7C5DA-F8EE-4910-A2F5-C32EDCAC43FC"
@@ -40,30 +35,30 @@ final class BTMParserTests: XCTestCase {
 
         // Find Item #3 ("1Password Launcher") by its identifier
         let targetIdentifier = "4.com.1password.1password-launcher" // Correct identifier for Item #3
-        guard let targetItem = userItems.first(where: { $0[Keys.itemID] as? String == targetIdentifier }) else {
+        guard let targetItem = userItems.first(where: { $0.identifier == targetIdentifier }) else { // Use .identifier
             XCTFail("Expected Item with identifier \(targetIdentifier) not found for user \(targetUserID)")
             return
         }
 
-        // Assert specific values for Item #3 ("1Password Launcher")
-        XCTAssertEqual(targetItem[Keys.itemName] as? String, "1Password Launcher", "Item name mismatch")
-        XCTAssertEqual(targetItem[Keys.itemUUID] as? String, "86703457-9137-4467-AF13-B21883C26467", "Item UUID mismatch")
-        XCTAssertEqual(targetItem[Keys.itemDevName] as? String, "AgileBits Inc.", "Item developer name mismatch")
-        XCTAssertEqual(targetItem[Keys.itemTeamID] as? String, "2BUA8C4S2C", "Item team ID mismatch")
-        XCTAssertEqual(targetItem[Keys.itemType] as? Int64, 4, "Item type mismatch")
-        XCTAssertEqual(targetItem[Keys.itemTypeDetails] as? String, "login item", "Item type details mismatch")
+        // Assert specific values for Item #3 ("1Password Launcher") using struct properties
+        XCTAssertEqual(targetItem.name, "1Password Launcher", "Item name mismatch")
+        XCTAssertEqual(targetItem.uuid, "86703457-9137-4467-AF13-B21883C26467", "Item UUID mismatch")
+        XCTAssertEqual(targetItem.developerName, "AgileBits Inc.", "Item developer name mismatch")
+        XCTAssertEqual(targetItem.teamIdentifier, "2BUA8C4S2C", "Item team ID mismatch")
+        XCTAssertEqual(targetItem.type, 4, "Item type mismatch") // Direct property access
+        XCTAssertEqual(targetItem.typeDetails, "login item", "Item type details mismatch") // Direct property access
         // Update expected values based on actual decoded data from .btm file
-        XCTAssertEqual(targetItem[Keys.itemDisposition] as? Int64, 10, "Item disposition mismatch") // Actual decoded value is 10 (0xa)
-        XCTAssertEqual(targetItem[Keys.itemDispositionDetails] as? String, "disabled allowed visible notified", "Item disposition details mismatch") // Matches disposition 10
-        XCTAssertEqual(targetItem[Keys.itemBundleID] as? String, "com.1password.1password-launcher", "Item bundle ID mismatch")
-        XCTAssertEqual(targetItem[Keys.itemContainer] as? String, "2.com.1password.1password", "Item parent ID mismatch")
-        XCTAssertEqual(targetItem[Keys.itemGeneration] as? Int64, 4, "Item generation mismatch") // Actual decoded value is 4
+        XCTAssertEqual(targetItem.disposition, 10, "Item disposition mismatch") // Direct property access
+        XCTAssertEqual(targetItem.dispositionDetails, "disabled allowed visible notified", "Item disposition details mismatch") // Direct property access
+        XCTAssertEqual(targetItem.bundleIdentifier, "com.1password.1password-launcher", "Item bundle ID mismatch")
+        XCTAssertEqual(targetItem.containerIdentifier, "2.com.1password.1password", "Item container ID mismatch") // Check new property name
+        XCTAssertEqual(targetItem.generation, 4, "Item generation mismatch") // Direct property access
 
         let expectedExeSuffix = "/Contents/MacOS/1Password Launcher"
-        if let exePath = targetItem[Keys.itemExePath] as? String {
+        if let exePath = targetItem.executablePath { // Use .executablePath
             XCTAssertTrue(exePath.hasSuffix(expectedExeSuffix), "Item executable path mismatch (expected suffix: \(expectedExeSuffix), got: \(exePath))")
         } else {
-            XCTFail("Item executable path is missing or not a string")
+            XCTFail("Item executable path is missing") // Adjusted fail message
         }
     }
 
