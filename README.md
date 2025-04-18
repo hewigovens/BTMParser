@@ -1,4 +1,6 @@
 # BTMParser
+[![Swift](https://github.com/hewigovens/BTMParser/actions/workflows/swift.yml/badge.svg)](https://github.com/hewigovens/BTMParser/actions/workflows/swift.yml)
+
 An open-source Swift package and command-line tool (`btm-dumper`) to parse macOS Background Task Management (BTM) files (`BackgroundItems-v*.btm`).
 
 ## Requirements
@@ -50,10 +52,8 @@ The tool outputs the parsed data as a JSON object to standard output:
         "typeDetails" : "app",
         "url" : "file:///Applications/1Password.app/",
         "uuid" : "55A31ED3-ADDE-4ABA-8BDC-19E88A31F18C"
-      },
-      // ... more items ...
-    ],
-    // ... more user IDs ...
+      }
+    ]
   },
   "path" : "<BackgroundItems-vX.btm>"
 }

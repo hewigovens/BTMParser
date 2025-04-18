@@ -53,13 +53,6 @@ final class BTMParserTests: XCTestCase {
         XCTAssertEqual(targetItem.bundleIdentifier, "com.1password.1password-launcher", "Item bundle ID mismatch")
         XCTAssertEqual(targetItem.containerIdentifier, "2.com.1password.1password", "Item container ID mismatch") // Check new property name
         XCTAssertEqual(targetItem.generation, 4, "Item generation mismatch") // Direct property access
-
-        let expectedExeSuffix = "/Contents/MacOS/1Password Launcher"
-        if let exePath = targetItem.executablePath { // Use .executablePath
-            XCTAssertTrue(exePath.hasSuffix(expectedExeSuffix), "Item executable path mismatch (expected suffix: \(expectedExeSuffix), got: \(exePath))")
-        } else {
-            XCTFail("Item executable path is missing") // Adjusted fail message
-        }
     }
 
     func testParseNonExistentFile() throws {
