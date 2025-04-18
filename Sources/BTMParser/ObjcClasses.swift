@@ -45,23 +45,28 @@ final class Storage: NSObject, NSSecureCoding {
 
     init?(coder decoder: NSCoder) {
         super.init()
-        let allowedClassesForItems: [AnyClass] = [NSDictionary.self, NSArray.self, ItemRecord.self, NSString.self, NSNumber.self, NSURL.self, NSSet.self]
-        self.itemsByUserIdentifier = decoder
-            .decodeObject(
-                of: allowedClassesForItems,
-                forKey: Keys.itemsByUserID
-            ) as? NSDictionary
+        let allowedClassesForItems: [AnyClass] = [
+            NSDictionary.self,
+            NSArray.self,
+            ItemRecord.self,
+            NSString.self,
+            NSNumber.self,
+            NSURL.self,
+            NSSet.self,
+        ]
+        // swiftformat:disable maxwidth
+        self.itemsByUserIdentifier = decoder.decodeObject(of: allowedClassesForItems, forKey: Keys.itemsByUserID) as? NSDictionary
 
-        let allowedClassesForMDM: [AnyClass] = [NSDictionary.self, NSString.self, NSNumber.self]
-        self.mdmPayloadsByIdentifier = decoder
-            .decodeObject(
-                of: allowedClassesForMDM,
-                forKey: Keys.mdmPayloadsByIdentifier
-            ) as? NSDictionary
+        let allowedClassesForMDM: [AnyClass] = [
+            NSDictionary.self,
+            NSString.self,
+            NSNumber.self,
+        ]
+        self.mdmPayloadsByIdentifier = decoder.decodeObject(of: allowedClassesForMDM, forKey: Keys.mdmPayloadsByIdentifier) as? NSDictionary
+        // swiftformat:enable all
     }
 
     func encode(with encoder: NSCoder) {
-        // Encode properties
         encoder.encode(self.itemsByUserIdentifier, forKey: Keys.itemsByUserID)
         encoder.encode(self.mdmPayloadsByIdentifier, forKey: Keys.mdmPayloadsByIdentifier)
     }
@@ -107,7 +112,8 @@ final class ItemRecord: NSObject, NSSecureCoding {
         self.executablePath = decoder.decodeObject(of: NSString.self, forKey: Keys.itemExePath) as String?
         self.generation = decoder.decodeInt64(forKey: Keys.itemGeneration)
         self.disposition = decoder.decodeInt64(forKey: Keys.itemDisposition)
-        // Decode associatedBundleIdentifiers as NSArray containing NSStrings
+
+        // Decode associatedBundleIdentifiers as NSArray containing NSString
         self.associatedBundleIdentifiers = decoder.decodeObject(
             of: [NSArray.self, NSString.self],
             forKey: Keys.itemAssociatedIDs

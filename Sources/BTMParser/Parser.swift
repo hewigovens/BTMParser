@@ -23,10 +23,15 @@ public enum BTMParser {
             let storage = try Self._unarchiveBTMData(data: data)
 
             // Safely cast and process itemsByUserID
-            guard let rawItemsDict = storage.itemsByUserIdentifier as? [String: [ItemRecord]] else {
-                // Handle case where casting fails or key is missing, maybe return empty?
+            guard
+                let rawItemsDict = storage.itemsByUserIdentifier as? [String: [ItemRecord]]
+            else {
                 print("Warning: 'itemsByUserID' key missing or has unexpected type.")
-                return ParsedData(path: filePath, itemsByUserID: [:], mdmPayloadsByIdentifier: storage.mdmPayloadsByIdentifier as? [String: Any])
+                return ParsedData(
+                    path: filePath,
+                    itemsByUserID: [:],
+                    mdmPayloadsByIdentifier: storage.mdmPayloadsByIdentifier as? [String: Any]
+                )
             }
 
             let processedItemsByUserID: [String: [ParsedItem]] = rawItemsDict.mapValues { records in
@@ -73,7 +78,6 @@ public enum BTMParser {
             // Initialize unarchiver requiring secure coding
             let unarchiver = try NSKeyedUnarchiver(forReadingFrom: data)
             unarchiver.requiresSecureCoding = true
-            // DO NOT set allowedClasses here
 
             // Attempt to decode the 'store' object, PASSING allowedClasses
             guard let storage = unarchiver.decodeObject(of: allowedClasses, forKey: "store") as? Storage else {
@@ -82,7 +86,6 @@ public enum BTMParser {
                    let nestedUnarchiver = try? NSKeyedUnarchiver(forReadingFrom: storeData)
                 {
                     nestedUnarchiver.requiresSecureCoding = true
-                    // DO NOT set allowedClasses here either
                     // Decode nested object, PASSING allowedClasses
                     if let nestedStorage = nestedUnarchiver.decodeObject(of: allowedClasses, forKey: NSKeyedArchiveRootObjectKey) as? Storage {
                         print("Decoded Storage object using 'storeData' key.")
@@ -99,9 +102,8 @@ public enum BTMParser {
             unarchiver.finishDecoding()
             return storage
         } catch let error as BTMParserError {
-            throw error // Re-throw our specific errors
+            throw error
         } catch {
-            // Wrap other unarchiving errors
             throw BTMParserError.unarchiveFailed(reason: "NSKeyedUnarchiver error: \(error.localizedDescription)")
         }
     }
@@ -113,7 +115,6 @@ public enum BTMParser {
               let uuid = record.uuid, !uuid.isEmpty, // Assuming record.uuid is String?
               let name = record.name, !name.isEmpty
         else {
-            // Log potentially incomplete record? For now, just skip.
             print("Skipping record due to missing identifier, uuid, or name: \(record)")
             return nil
         }
@@ -141,7 +142,7 @@ public enum BTMParser {
     // Helper to find a parent ParsedItem based on containerIdentifier
     private static func findParent(for item: ParsedItem, in allItems: [ParsedItem]) -> ParsedItem? {
         guard let containerID = item.containerIdentifier, !containerID.isEmpty else {
-            return nil // Item has no container ID
+            return nil
         }
         // The containerID in ItemRecord corresponds to the parent's identifier
         return allItems.first { $0.identifier == containerID }
@@ -209,7 +210,6 @@ public enum BTMParser {
                     print("Warning: Missing URL path for App Item: \(item.identifier)")
                 }
             }
-
             return updatedItem // Return the original or updated item
         }
     }

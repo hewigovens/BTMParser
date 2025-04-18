@@ -64,7 +64,6 @@ public struct ParsedData: Encodable {
         self.mdmPayloadsByIdentifier = mdmPayloadsByIdentifier
     }
 
-    // Manual implementation of encode(to:)
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(self.path, forKey: .path)
