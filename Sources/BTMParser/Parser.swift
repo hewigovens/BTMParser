@@ -138,8 +138,14 @@ private func itemRecordToDictionary(_ record: ItemRecord, allItemsForUser: [Item
     if let teamID = record.teamIdentifier, !teamID.isEmpty { // Check if nil or empty
         item[Keys.itemTeamID] = teamID
     }
+    // Add raw type and disposition values
     item[Keys.itemType] = record.type
     item[Keys.itemDisposition] = record.disposition
+
+    // Details derived from helper functions
+    item[Keys.itemTypeDetails] = TypeFlag.typeDetails(record)
+    item[Keys.itemDispositionDetails] = DispositionFlag.dispositionDetails(record)
+
     item[Keys.itemID] = record.identifier
     // Convert NSURL to String for JSON compatibility
     item[Keys.itemURL] = record.url?.absoluteString
@@ -148,10 +154,6 @@ private func itemRecordToDictionary(_ record: ItemRecord, allItemsForUser: [Item
     if let bundleID = record.bundleIdentifier, !bundleID.isEmpty {
         item[Keys.itemBundleID] = bundleID
     }
-
-    // Details derived from helper functions (using stubs for now)
-    item[Keys.itemTypeDetails] = typeDetails(record)
-    item[Keys.itemDispositionDetails] = dispositionDetails(record)
 
     // Associated bundle IDs
     // Original ObjC uses NSArray, convert to Swift [String]? for consistency
@@ -174,10 +176,10 @@ private func itemRecordToDictionary(_ record: ItemRecord, allItemsForUser: [Item
     }
 
     // Logic for specific item types to determine paths
-    let agentTypeFlag: Int64 = 0x8
-    let daemonTypeFlag: Int64 = 0x10
-    let loginItemTypeFlag: Int64 = 0x4
-    let appTypeFlag: Int64 = 0x2
+    let agentTypeFlag = TypeFlag.agent.rawValue
+    let daemonTypeFlag = TypeFlag.daemon.rawValue
+    let loginItemTypeFlag = TypeFlag.loginItem.rawValue
+    let appTypeFlag = TypeFlag.app.rawValue
 
     // Agent or Daemon (type & 0x8 || type & 0x10)
     if (record.type & agentTypeFlag != 0) || (record.type & daemonTypeFlag != 0) {
@@ -222,88 +224,6 @@ private func itemRecordToDictionary(_ record: ItemRecord, allItemsForUser: [Item
     }
 
     return item
-}
-
-// MARK: - Helper Function Stubs (Need Implementation)
-
-// Swift implementation of ObjC typeDetails function
-private func typeDetails(_ record: ItemRecord) -> String {
-    var details = ""
-
-    // Define flags based on ObjC code
-    let curatedFlag: Int64 = 0x80000
-    let legacyFlag: Int64 = 0x10000
-    let developerFlag: Int64 = 0x20
-    let daemonFlag: Int64 = 0x10
-    let agentFlag: Int64 = 0x8
-    let loginItemFlag: Int64 = 0x4
-    let appFlag: Int64 = 0x2
-
-    if (record.type & curatedFlag) != 0 {
-        details += "curated "
-    }
-    if (record.type & legacyFlag) != 0 {
-        details += "legacy "
-    }
-    if (record.type & developerFlag) != 0 {
-        details += "developer "
-    }
-    if (record.type & daemonFlag) != 0 {
-        details += "daemon "
-    }
-    if (record.type & agentFlag) != 0 {
-        details += "agent "
-    }
-    if (record.type & loginItemFlag) != 0 {
-        details += "login item "
-    }
-    if (record.type & appFlag) != 0 {
-        details += "app "
-    }
-
-    // Remove trailing space if present
-    return details.trimmingCharacters(in: .whitespaces)
-}
-
-// Swift implementation of ObjC dispositionDetails function
-private func dispositionDetails(_ record: ItemRecord) -> String {
-    var details: [String] = []
-
-    // Define flags based on ObjC code
-    let enabledFlag: Int64 = 0x1
-    let allowedFlag: Int64 = 0x2
-    let hiddenFlag: Int64 = 0x4
-    let notifiedFlag: Int64 = 0x8
-
-    // Enabled / Disabled
-    if (record.disposition & enabledFlag) != 0 {
-        details.append("enabled")
-    } else {
-        details.append("disabled")
-    }
-
-    // Allowed / Disallowed
-    if (record.disposition & allowedFlag) != 0 {
-        details.append("allowed")
-    } else {
-        details.append("disallowed")
-    }
-
-    // Hidden / Visible
-    if (record.disposition & hiddenFlag) != 0 {
-        details.append("hidden")
-    } else {
-        details.append("visible")
-    }
-
-    // Notified / Not Notified
-    if (record.disposition & notifiedFlag) != 0 {
-        details.append("notified")
-    } else {
-        details.append("not notified")
-    }
-
-    return details.joined(separator: " ")
 }
 
 private func findParent(_ record: ItemRecord, items: [ItemRecord]) -> ItemRecord? {
