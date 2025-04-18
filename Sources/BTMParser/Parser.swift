@@ -9,6 +9,7 @@ import Foundation
 /// - Returns: A dictionary representing the parsed BTM data, or nil on failure.
 /// - Throws: `BTMParserError` if the file is not found or parsing fails.
 public enum BTMParser {
+    public static let version = "0.1.0"
     public static func parse(path btmPath: URL) throws -> ParsedData {
         let filePath = btmPath.path
         guard FileManager.default.fileExists(atPath: filePath) else {
@@ -80,7 +81,9 @@ public enum BTMParser {
             unarchiver.requiresSecureCoding = true
 
             // Attempt to decode the 'store' object, PASSING allowedClasses
-            guard let storage = unarchiver.decodeObject(of: allowedClasses, forKey: "store") as? Storage else {
+            guard
+                let storage = unarchiver.decodeObject(of: allowedClasses, forKey: "store") as? Storage
+            else {
                 // Fallback: Try decoding 'storeData' if 'store' fails
                 if let storeData = unarchiver.decodeObject(forKey: "storeData") as? Data,
                    let nestedUnarchiver = try? NSKeyedUnarchiver(forReadingFrom: storeData)
@@ -98,7 +101,6 @@ public enum BTMParser {
                 // If both attempts fail
                 throw BTMParserError.unarchiveFailed(reason: "Could not decode Storage object using 'store' or 'storeData' keys.")
             }
-            print("Decoded Storage object using 'store' key.")
             unarchiver.finishDecoding()
             return storage
         } catch let error as BTMParserError {
@@ -121,21 +123,21 @@ public enum BTMParser {
 
         return ParsedItem(
             identifier: identifier,
-            uuid: uuid, // Pass the unwrapped String directly
+            uuid: uuid,
             name: name,
             developerName: record.developerName,
             teamIdentifier: record.teamIdentifier,
-            type: record.type, // Keep raw Int64 type
-            typeDetails: TypeFlag.typeDetails(record), // Generate details string
-            disposition: record.disposition, // Keep raw Int64 disposition
-            dispositionDetails: DispositionFlag.dispositionDetails(record), // Generate details string
+            type: record.type,
+            typeDetails: TypeFlag.typeDetails(record),
+            disposition: record.disposition,
+            dispositionDetails: DispositionFlag.dispositionDetails(record),
             url: record.url,
-            executablePath: record.executablePath, // Initial path, might be refined later
+            executablePath: record.executablePath,
             bundleIdentifier: record.bundleIdentifier,
-            parentIdentifier: record.container, // Corrected: Use 'container' from ItemRecord
-            containerIdentifier: record.container, // Renamed key in ParsedItem struct
-            associatedBundleIdentifiers: record.associatedBundleIdentifiers as? [String], // Cast needed
-            generation: record.generation // Assign Int64 directly to Int64?
+            parentIdentifier: record.container,
+            containerIdentifier: record.container,
+            associatedBundleIdentifiers: record.associatedBundleIdentifiers as? [String],
+            generation: record.generation
         )
     }
 

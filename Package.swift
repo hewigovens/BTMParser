@@ -28,7 +28,7 @@ let package = Package(
         .executableTarget(
             name: "btm-dumper",
             dependencies: ["BTMParser"],
-            path: "Sources/btm-dumper"
+            path: "Sources/CLI"
         ),
         .testTarget(
             name: "BTMParserTests",

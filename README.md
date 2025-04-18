@@ -25,11 +25,11 @@ An open-source Swift package and command-line tool (`btm-dumper`) to parse macOS
     -   **To parse a specific BTM file:**
         Provide the path as a command-line argument.
         ```bash
-        swift run btm-dumper /path/to/your/BackgroundItems-vX.btm
+        swift run btm-dumper -f /path/to/your/BackgroundItems-vX.btm
         ```
 
 > [!NOTE]  
-> You need Full Disk Access to read the default path `/private/var/db/com.apple.backgroundtaskmanagement/`.
+> You need Full Disk Access to read the path `/private/var/db/com.apple.backgroundtaskmanagement/`.
 
 ## JSON Output
 
